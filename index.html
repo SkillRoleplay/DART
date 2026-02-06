@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>🎯 501 GRENACHER DART</title>
+  <meta name="theme-color" content="#0b0f18" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <div class="bg-orbs" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar__left">
+      <div class="brand">
+        <div class="brand__icon">🎯</div>
+        <div class="brand__text">
+          <div class="brand__title">GRENACHER DART</div>
+          <div class="brand__sub" id="subtitle">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="topbar__actions">
+      <button class="btn btn--ghost" id="btnNewLeg" title="Neue Runde">🔄 Neue Runde</button>
+      <button class="btn btn--ghost" id="btnUndo" title="Undo">↩️ Undo</button>
+      <button class="btn btn--primary" id="btnSettings" title="Einstellungen">⚙️</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- SCOREBOARD -->
+    <section class="panel panel--score">
+      <div class="panel__head">
+        <div class="pill" id="turnPill">👤 Am Zug: <span id="currentName">—</span></div>
+        <div class="pill pill--muted" id="modePill">🎯 Double-Out: <span id="doubleOutLabel">—</span></div>
+      </div>
+
+      <div class="players" id="players"></div>
+
+      <div class="info">
+        <div class="info__title">Kurzregeln ⚡</div>
+        <div class="info__text">
+          Punkte pro Aufnahme (0–180) werden abgezogen. Bei Double-Out musst du genau auf 0 kommen und mit Double oder Bull beenden.
+          Wenn die App bei 0 nachfragt: das ist nötig, weil sie aus einer einzigen Zahl nicht wissen kann, ob der letzte Dart Double/Bull war.
+        </div>
+      </div>
+    </section>
+
+    <!-- INPUT -->
+    <section class="panel panel--input">
+      <div class="display">
+        <div class="display__meta">
+          <div class="display__label">Eingabe</div>
+          <div class="display__hint">0–180</div>
+        </div>
+        <div class="display__value" id="inputDisplay">0</div>
+
+        <div class="display__actions">
+          <button class="btn btn--ghost" id="btnClear">🧹 Löschen</button>
+          <button class="btn btn--primary" id="btnSubmit">✅ Eintragen</button>
+        </div>
+      </div>
+
+      <div class="quick">
+        <button class="chip" data-quick="0">0</button>
+        <button class="chip" data-quick="60">60</button>
+        <button class="chip" data-quick="100">100</button>
+        <button class="chip" data-quick="140">140</button>
+        <button class="chip" data-quick="180">180</button>
+        <button class="chip chip--warn" data-quick="BUST">Bust</button>
+      </div>
+
+      <div class="keypad" id="keypad" aria-label="Zahlenfeld"></div>
+
+      <div class="status" id="status">Bereit ✅</div>
+    </section>
+  </main>
+
+  <!-- START / SETUP -->
+  <dialog class="dlg" id="dlgStart">
+    <form method="dialog" class="dlg__card">
+      <div class="dlg__head">
+        <div>
+          <div class="dlg__title">🚀 Spiel starten</div>
+          <div class="dlg__subtitle">Wähle Spieleranzahl, Namen und Double-Out.</div>
+        </div>
+        <button class="iconbtn" value="cancel" aria-label="Schliessen">✕</button>
+      </div>
+
+      <div class="dlg__grid">
+        <label class="field">
+          <span class="field__label">Spieleranzahl</span>
+          <select class="field__control" id="startPlayers">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4" selected>4</option>
+          </select>
+        </label>
+
+        <label class="switch">
+          <span class="switch__text">🎯 Double-Out</span>
+          <input type="checkbox" id="startDoubleOut" checked />
+          <span class="switch__ui" aria-hidden="true"></span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 1</span>
+          <input class="field__control" id="startP1" type="text" placeholder="Spieler 1" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 2</span>
+          <input class="field__control" id="startP2" type="text" placeholder="Spieler 2" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 3</span>
+          <input class="field__control" id="startP3" type="text" placeholder="Spieler 3" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 4</span>
+          <input class="field__control" id="startP4" type="text" placeholder="Spieler 4" />
+        </label>
+      </div>
+
+      <div class="dlg__actions dlg__actions--end">
+        <button class="btn btn--primary" type="button" id="btnStartGame">🎯 Start</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- SETTINGS -->
+  <dialog class="dlg" id="dlgSettings">
+    <form method="dialog" class="dlg__card" id="settingsForm">
+      <div class="dlg__head">
+        <div class="dlg__title">⚙️ Einstellungen</div>
+        <button class="iconbtn" value="cancel" aria-label="Schliessen">✕</button>
+      </div>
+
+      <div class="dlg__grid">
+        <label class="field">
+          <span class="field__label">Spieleranzahl</span>
+          <select class="field__control" id="selPlayers">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4" selected>4</option>
+          </select>
+        </label>
+
+        <label class="switch">
+          <span class="switch__text">🎯 Double-Out</span>
+          <input type="checkbox" id="chkDoubleOut" />
+          <span class="switch__ui" aria-hidden="true"></span>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 1</span>
+          <input class="field__control" id="p1" type="text" placeholder="Spieler 1" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 2</span>
+          <input class="field__control" id="p2" type="text" placeholder="Spieler 2" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 3</span>
+          <input class="field__control" id="p3" type="text" placeholder="Spieler 3" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Spieler 4</span>
+          <input class="field__control" id="p4" type="text" placeholder="Spieler 4" />
+        </label>
+      </div>
+
+      <div class="dlg__actions">
+        <button class="btn btn--danger" type="button" id="btnResetMatch">🧨 Match reset</button>
+        <button class="btn btn--ghost" value="cancel">Schliessen</button>
+        <button class="btn btn--primary" type="button" id="btnApplySettings">✅ Anwenden</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- FINISH CONFIRM -->
+  <dialog class="dlg" id="dlgFinish">
+    <form method="dialog" class="dlg__card">
+      <div class="dlg__head">
+        <div class="dlg__title">🏁 Finish?</div>
+        <button class="iconbtn" value="cancel" aria-label="Schliessen">✕</button>
+      </div>
+      <div class="dlg__body">
+        <div class="finishText" id="finishText">War der letzte Dart ein Double oder Bull?</div>
+        <div class="dlg__actions dlg__actions--end">
+          <button class="btn btn--ghost" type="button" id="btnFinishNo">❌ Nein (Bust)</button>
+          <button class="btn btn--primary" type="button" id="btnFinishYes">✅ Ja (Gewonnen)</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- WINNER -->
+  <dialog class="dlg" id="dlgWinner">
+    <form method="dialog" class="dlg__card">
+      <div class="dlg__head">
+        <div class="dlg__title">🏆 Runde gewonnen</div>
+        <button class="iconbtn" value="cancel" aria-label="Schliessen">✕</button>
+      </div>
+      <div class="dlg__body">
+        <div class="winnerText" id="winnerText">—</div>
+        <div class="dlg__actions dlg__actions--end">
+          <button class="btn btn--ghost" value="cancel">Schliessen</button>
+          <button class="btn btn--primary" type="button" id="btnWinnerNewLeg">🔄 Neue Runde</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
