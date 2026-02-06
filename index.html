@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>🎯 501 GRENACHER DART</title>
+  <title>GRENACHER DART · 501</title>
   <meta name="theme-color" content="#0b0f18" />
   <link rel="stylesheet" href="./style.css" />
 </head>
@@ -14,9 +14,33 @@
   <header class="topbar">
     <div class="topbar__left">
       <div class="brand">
-        <div class="brand__icon">🎯</div>
+        <div class="brand__icon" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img" aria-label="GRENACHER DART Logo">
+            <defs>
+              <radialGradient id="g1" cx="30%" cy="20%" r="80%">
+                <stop offset="0%" stop-color="rgba(125,211,252,0.95)"/>
+                <stop offset="55%" stop-color="rgba(167,139,250,0.75)"/>
+                <stop offset="100%" stop-color="rgba(251,113,133,0.55)"/>
+              </radialGradient>
+            </defs>
+            <circle cx="32" cy="32" r="22" fill="rgba(0,0,0,0.25)" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+            <circle cx="32" cy="32" r="15" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>
+            <circle cx="32" cy="32" r="7"  fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.10)" stroke-width="2"/>
+            <line x1="32" y1="10" x2="32" y2="54" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+            <line x1="10" y1="32" x2="54" y2="32" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+            <line x1="17" y1="17" x2="47" y2="47" stroke="rgba(255,255,255,0.10)" stroke-width="2"/>
+            <line x1="47" y1="17" x2="17" y2="47" stroke="rgba(255,255,255,0.10)" stroke-width="2"/>
+            <path d="M44 18 L54 8 L56 10 L46 20 Z" fill="url(#g1)" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+            <path d="M36 26 L44 18 L46 20 L38 28 Z" fill="rgba(255,255,255,0.10)"/>
+            <circle cx="44" cy="18" r="2.2" fill="rgba(255,255,255,0.35)"/>
+          </svg>
+        </div>
+
         <div class="brand__text">
-          <div class="brand__title">GRENACHER DART</div>
+          <div class="brand__title">
+            <span class="logo__word">GRENACHER</span>
+            <span class="logo__accent">DART</span>
+          </div>
           <div class="brand__sub" id="subtitle">—</div>
         </div>
       </div>
@@ -33,8 +57,8 @@
     <!-- SCOREBOARD -->
     <section class="panel panel--score">
       <div class="panel__head">
-        <div class="pill" id="turnPill">👤 Am Zug: <span id="currentName">—</span></div>
-        <div class="pill pill--muted" id="modePill">🎯 Double-Out: <span id="doubleOutLabel">—</span></div>
+        <div class="pill">👤 Am Zug: <span id="currentName">—</span></div>
+        <div class="pill pill--muted">🎯 Double-Out: <span id="doubleOutLabel">—</span></div>
       </div>
 
       <div class="players" id="players"></div>
@@ -42,37 +66,53 @@
       <div class="info">
         <div class="info__title">Kurzregeln ⚡</div>
         <div class="info__text">
-          Punkte pro Aufnahme (0–180) werden abgezogen. Bei Double-Out musst du genau auf 0 kommen und mit Double oder Bull beenden.
-          Wenn die App bei 0 nachfragt: das ist nötig, weil sie aus einer einzigen Zahl nicht wissen kann, ob der letzte Dart Double/Bull war.
+          Du gibst 3 Darts einzeln ein: wähle <strong>S/D/T</strong>, dann tippe Segment <strong>1–20</strong>.
+          MISS/OB/BULL sind eigene Buttons. Bust bleibt wie vorher. Double-Out wird automatisch erkannt (BULL 50 zählt).
         </div>
       </div>
     </section>
 
     <!-- INPUT -->
     <section class="panel panel--input">
-      <div class="display">
-        <div class="display__meta">
-          <div class="display__label">Eingabe</div>
-          <div class="display__hint">0–180</div>
+      <div class="turn">
+        <div class="turn__head">
+          <div>
+            <div class="turn__title">Aufnahme (3 Darts)</div>
+            <div class="turn__sub">Slot antippen → S/D/T wählen → Segment 1–20 antippen.</div>
+          </div>
+          <div class="turn__total">Total: <span id="turnTotal">0</span></div>
         </div>
-        <div class="display__value" id="inputDisplay">0</div>
 
-        <div class="display__actions">
-          <button class="btn btn--ghost" id="btnClear">🧹 Löschen</button>
-          <button class="btn btn--primary" id="btnSubmit">✅ Eintragen</button>
+        <div class="dartSlots" id="dartSlots"></div>
+
+        <div class="segmentRow">
+          <div class="segmentBox">
+            <div class="segmentBox__label">Aktiv</div>
+            <div class="segmentBox__value" id="activeDisplay">Dart 1 · S</div>
+          </div>
+
+          <div class="multRow" role="group" aria-label="Multiplikator">
+            <button class="multBtn" type="button" data-mult="1" id="btnMultS">S</button>
+            <button class="multBtn" type="button" data-mult="2" id="btnMultD">D</button>
+            <button class="multBtn" type="button" data-mult="3" id="btnMultT">T</button>
+          </div>
+        </div>
+
+        <div class="turnActions">
+          <button class="chip" id="btnMiss" type="button">MISS</button>
+          <button class="chip" id="btnOBull" type="button">OB 25</button>
+          <button class="chip" id="btnBull" type="button">BULL 50</button>
+          <button class="chip chip--warn" id="btnUndoDart" type="button">↩️ Dart zurück</button>
+          <button class="chip chip--warn" id="btnClearTurn" type="button">🧹 Aufnahme löschen</button>
         </div>
       </div>
 
-      <div class="quick">
-        <button class="chip" data-quick="0">0</button>
-        <button class="chip" data-quick="60">60</button>
-        <button class="chip" data-quick="100">100</button>
-        <button class="chip" data-quick="140">140</button>
-        <button class="chip" data-quick="180">180</button>
-        <button class="chip chip--warn" data-quick="BUST">Bust</button>
-      </div>
+      <!-- ✅ Segment-Grid 1–20 -->
+      <div class="segmentPad" id="segmentPad" aria-label="Segmente 1 bis 20"></div>
 
-      <div class="keypad" id="keypad" aria-label="Zahlenfeld"></div>
+      <div class="displayActions">
+        <button class="btn btn--primary" id="btnSubmitTurn">✅ Eintragen</button>
+      </div>
 
       <div class="status" id="status">Bereit ✅</div>
     </section>
@@ -105,25 +145,10 @@
           <span class="switch__ui" aria-hidden="true"></span>
         </label>
 
-        <label class="field">
-          <span class="field__label">Spieler 1</span>
-          <input class="field__control" id="startP1" type="text" placeholder="Spieler 1" />
-        </label>
-
-        <label class="field">
-          <span class="field__label">Spieler 2</span>
-          <input class="field__control" id="startP2" type="text" placeholder="Spieler 2" />
-        </label>
-
-        <label class="field">
-          <span class="field__label">Spieler 3</span>
-          <input class="field__control" id="startP3" type="text" placeholder="Spieler 3" />
-        </label>
-
-        <label class="field">
-          <span class="field__label">Spieler 4</span>
-          <input class="field__control" id="startP4" type="text" placeholder="Spieler 4" />
-        </label>
+        <label class="field"><span class="field__label">Spieler 1</span><input class="field__control" id="startP1" type="text" placeholder="Spieler 1" /></label>
+        <label class="field"><span class="field__label">Spieler 2</span><input class="field__control" id="startP2" type="text" placeholder="Spieler 2" /></label>
+        <label class="field"><span class="field__label">Spieler 3</span><input class="field__control" id="startP3" type="text" placeholder="Spieler 3" /></label>
+        <label class="field"><span class="field__label">Spieler 4</span><input class="field__control" id="startP4" type="text" placeholder="Spieler 4" /></label>
       </div>
 
       <div class="dlg__actions dlg__actions--end">
@@ -134,7 +159,7 @@
 
   <!-- SETTINGS -->
   <dialog class="dlg" id="dlgSettings">
-    <form method="dialog" class="dlg__card" id="settingsForm">
+    <form method="dialog" class="dlg__card">
       <div class="dlg__head">
         <div class="dlg__title">⚙️ Einstellungen</div>
         <button class="iconbtn" value="cancel" aria-label="Schliessen">✕</button>
@@ -156,65 +181,16 @@
           <span class="switch__ui" aria-hidden="true"></span>
         </label>
 
-        <label class="field">
-          <span class="field__label">Spieler 1</span>
-          <input class="field__control" id="p1" type="text" placeholder="Spieler 1" />
-        </label>
-
-        <label class="field">
-          <span class="field__label">Spieler 2</span>
-          <input class="field__control" id="p2" type="text" placeholder="Spieler 2" />
-        </label>
-
-        <label class="field">
-          <span class="field__label">Spieler 3</span>
-          <input class="field__control" id="p3" type="text" placeholder="Spieler 3" />
-        </label>
-
-        <label class="field">
-          <span class="field__label">Spieler 4</span>
-          <input class="field__control" id="p4" type="text" placeholder="Spieler 4" />
-        </label>
+        <label class="field"><span class="field__label">Spieler 1</span><input class="field__control" id="p1" type="text" /></label>
+        <label class="field"><span class="field__label">Spieler 2</span><input class="field__control" id="p2" type="text" /></label>
+        <label class="field"><span class="field__label">Spieler 3</span><input class="field__control" id="p3" type="text" /></label>
+        <label class="field"><span class="field__label">Spieler 4</span><input class="field__control" id="p4" type="text" /></label>
       </div>
 
       <div class="dlg__actions">
         <button class="btn btn--danger" type="button" id="btnResetMatch">🧨 Match reset</button>
         <button class="btn btn--ghost" value="cancel">Schliessen</button>
         <button class="btn btn--primary" type="button" id="btnApplySettings">✅ Anwenden</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- FINISH CONFIRM -->
-  <dialog class="dlg" id="dlgFinish">
-    <form method="dialog" class="dlg__card">
-      <div class="dlg__head">
-        <div class="dlg__title">🏁 Finish?</div>
-        <button class="iconbtn" value="cancel" aria-label="Schliessen">✕</button>
-      </div>
-      <div class="dlg__body">
-        <div class="finishText" id="finishText">War der letzte Dart ein Double oder Bull?</div>
-        <div class="dlg__actions dlg__actions--end">
-          <button class="btn btn--ghost" type="button" id="btnFinishNo">❌ Nein (Bust)</button>
-          <button class="btn btn--primary" type="button" id="btnFinishYes">✅ Ja (Gewonnen)</button>
-        </div>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- WINNER -->
-  <dialog class="dlg" id="dlgWinner">
-    <form method="dialog" class="dlg__card">
-      <div class="dlg__head">
-        <div class="dlg__title">🏆 Runde gewonnen</div>
-        <button class="iconbtn" value="cancel" aria-label="Schliessen">✕</button>
-      </div>
-      <div class="dlg__body">
-        <div class="winnerText" id="winnerText">—</div>
-        <div class="dlg__actions dlg__actions--end">
-          <button class="btn btn--ghost" value="cancel">Schliessen</button>
-          <button class="btn btn--primary" type="button" id="btnWinnerNewLeg">🔄 Neue Runde</button>
-        </div>
       </div>
     </form>
   </dialog>

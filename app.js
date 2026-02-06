@@ -1,7 +1,16 @@
 "use strict";
 
+/**
+ * GRENACHER DART 501 (Segment-Grid 1–20)
+ * - 2–4 Spieler, 501, Double-Out optional
+ * - Aufnahme: 3 Darts einzeln (S/D/T + Segment 1–20 Buttons)
+ * - MISS / OB 25 / BULL 50
+ * - Fehler korrigieren: Slot antippen + neu setzen oder ↩️ Dart zurück
+ * - Undo: kompletter letzter Zug
+ */
+
 const START_SCORE = 501;
-const STORAGE_KEY = "dart_501_scoreboard_v3";
+const STORAGE_KEY = "grenacher_dart_501_v5";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -9,50 +18,50 @@ const elSubtitle = $("#subtitle");
 const elPlayers = $("#players");
 const elCurrentName = $("#currentName");
 const elDoubleOutLabel = $("#doubleOutLabel");
-const elInputDisplay = $("#inputDisplay");
 const elStatus = $("#status");
 
 const btnNewLeg = $("#btnNewLeg");
 const btnUndo = $("#btnUndo");
 const btnSettings = $("#btnSettings");
 
-const btnClear = $("#btnClear");
-const btnSubmit = $("#btnSubmit");
-const keypad = $("#keypad");
+/* Turn UI */
+const elTurnTotal = $("#turnTotal");
+const elDartSlots = $("#dartSlots");
+const elActiveDisplay = $("#activeDisplay");
 
+const btnMultS = $("#btnMultS");
+const btnMultD = $("#btnMultD");
+const btnMultT = $("#btnMultT");
+
+const btnMiss = $("#btnMiss");
+const btnOBull = $("#btnOBull");
+const btnBull = $("#btnBull");
+const btnUndoDart = $("#btnUndoDart");
+const btnClearTurn = $("#btnClearTurn");
+
+const segmentPad = $("#segmentPad");
+const btnSubmitTurn = $("#btnSubmitTurn");
+
+/* Start */
 const dlgStart = $("#dlgStart");
-const dlgSettings = $("#dlgSettings");
-const dlgFinish = $("#dlgFinish");
-const dlgWinner = $("#dlgWinner");
-
-/* START fields */
 const startPlayers = $("#startPlayers");
 const startDoubleOut = $("#startDoubleOut");
 const startNameInputs = [$("#startP1"), $("#startP2"), $("#startP3"), $("#startP4")];
 const btnStartGame = $("#btnStartGame");
 
-/* SETTINGS fields */
+/* Settings */
+const dlgSettings = $("#dlgSettings");
 const selPlayers = $("#selPlayers");
 const chkDoubleOut = $("#chkDoubleOut");
 const nameInputs = [$("#p1"), $("#p2"), $("#p3"), $("#p4")];
 const btnApplySettings = $("#btnApplySettings");
 const btnResetMatch = $("#btnResetMatch");
 
-/* Finish/Winner */
-const finishText = $("#finishText");
-const btnFinishYes = $("#btnFinishYes");
-const btnFinishNo = $("#btnFinishNo");
-const winnerText = $("#winnerText");
-const btnWinnerNewLeg = $("#btnWinnerNewLeg");
-
-let pendingFinish = null; // { playerIndex, prevScore }
-
 const defaultState = () => ({
   initialized: false,
   playerCount: 4,
   doubleOut: true,
   current: 0,
-  input: "",
   history: [],
   players: [
     { name: "Spieler 1", score: START_SCORE, legs: 0 },
@@ -60,11 +69,16 @@ const defaultState = () => ({
     { name: "Spieler 3", score: START_SCORE, legs: 0 },
     { name: "Spieler 4", score: START_SCORE, legs: 0 },
   ],
+  turn: {
+    darts: [null, null, null], // { label, points, isDoubleValid }
+    selected: 0,
+    mult: 1
+  }
 });
 
 let state = loadState();
 
-/* ---------------- Persistenz ---------------- */
+/* ---------- Persistenz ---------- */
 
 function loadState() {
   try {
@@ -90,7 +104,6 @@ function sanitizeState(s) {
   out.playerCount = [2, 3, 4].includes(Number(out.playerCount)) ? Number(out.playerCount) : 4;
   out.doubleOut = !!out.doubleOut;
   out.current = clamp(Number(out.current) || 0, 0, out.playerCount - 1);
-  out.input = typeof out.input === "string" ? out.input : "";
   out.history = Array.isArray(out.history) ? out.history : [];
 
   const players = Array.isArray(out.players) ? out.players : d.players;
@@ -100,107 +113,40 @@ function sanitizeState(s) {
     legs: clamp(Number(players[i]?.legs ?? 0), 0, 999),
   }));
 
+  const t = out.turn || {};
+  out.turn = {
+    darts: Array.isArray(t.darts) ? t.darts.slice(0, 3).map(x => x || null) : [null, null, null],
+    selected: clamp(Number(t.selected) || 0, 0, 2),
+    mult: [1,2,3].includes(Number(t.mult)) ? Number(t.mult) : 1
+  };
+
+  while (out.turn.darts.length < 3) out.turn.darts.push(null);
+  out.turn.darts = out.turn.darts.slice(0, 3);
+
   return out;
 }
 
-/* ---------------- Helpers ---------------- */
+/* ---------- Helpers ---------- */
 
-function clamp(n, a, b) {
-  return Math.max(a, Math.min(b, n));
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
-  }[c]));
-}
-
-function getPlayers() {
-  return state.players.slice(0, state.playerCount);
-}
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+function getPlayers() { return state.players.slice(0, state.playerCount); }
 
 function setStatus(msg, tone = "muted") {
   const icon = tone === "ok" ? "✅" : tone === "warn" ? "⚠️" : tone === "danger" ? "⛔" : "ℹ️";
   elStatus.textContent = `${icon} ${msg}`;
 }
 
-/* ---------------- UI: Keypad ---------------- */
+function multLetter(m) { return m === 1 ? "S" : m === 2 ? "D" : "T"; }
 
-function buildKeypad() {
-  keypad.innerHTML = "";
-
-  const keys = [
-    "1","2","3",
-    "4","5","6",
-    "7","8","9",
-    "⌫","0","00"
-  ];
-
-  keys.forEach((k) => {
-    const btn = document.createElement("button");
-    btn.className = "key" + (k === "⌫" ? " key--ghost" : "");
-    btn.type = "button";
-    btn.textContent = k;
-    btn.addEventListener("click", () => onKey(k));
-    keypad.appendChild(btn);
-  });
-
-  const extras = [
-    { label: "25", cls: "key key--ghost", val: "25" },
-    { label: "50", cls: "key key--ghost", val: "50" },
-    { label: "OK", cls: "key key--ok", val: "SUBMIT" },
-  ];
-
-  extras.forEach((e) => {
-    const btn = document.createElement("button");
-    btn.className = e.cls;
-    btn.type = "button";
-    btn.textContent = e.label;
-    btn.addEventListener("click", () => onKey(e.val));
-    keypad.appendChild(btn);
-  });
+function turnTotal() {
+  return state.turn.darts.reduce((sum, d) => sum + (d?.points || 0), 0);
 }
 
-function onKey(k) {
-  if (k === "⌫") {
-    state.input = state.input.slice(0, -1);
-    render();
-    return;
-  }
-  if (k === "SUBMIT") {
-    applyThrow();
-    return;
-  }
-  const next = (state.input + k).replace(/^0+(?=\d)/, "");
-  if (next.length > 3) return;
-  state.input = next;
-  render();
+function clearTurn() {
+  state.turn.darts = [null, null, null];
+  state.turn.selected = 0;
+  state.turn.mult = 1;
 }
-
-/* ---------------- Regeln / Scoring ---------------- */
-
-function validateThrowScore(n) {
-  if (!Number.isFinite(n)) return { ok: false, msg: "Ungültige Zahl." };
-  if (n < 0) return { ok: false, msg: "Score darf nicht negativ sein." };
-  if (n > 180) return { ok: false, msg: "Maximal 180 pro Aufnahme." };
-  return { ok: true, msg: "" };
-}
-
-function evaluateThrow(prevScore, throwScore, doubleOut) {
-  if (throwScore > prevScore) return { type: "bust", reason: "Zu viel geworfen (Bust)." };
-  const newScore = prevScore - throwScore;
-
-  if (!doubleOut) {
-    if (newScore === 0) return { type: "win" };
-    return { type: "ok", newScore };
-  }
-
-  if (newScore === 1) return { type: "bust", reason: "Rest 1 ist bei Double-Out Bust." };
-  if (newScore === 0) return { type: "needFinishConfirm" };
-  return { type: "ok", newScore };
-}
-
-/* ---------------- History / Undo ---------------- */
 
 function pushSnapshot() {
   const players = getPlayers();
@@ -209,9 +155,173 @@ function pushSnapshot() {
     doubleOut: state.doubleOut,
     scores: players.map(p => p.score),
     legs: players.map(p => p.legs),
+    turn: JSON.parse(JSON.stringify(state.turn))
   });
-  if (state.history.length > 100) state.history.shift();
+  if (state.history.length > 120) state.history.shift();
 }
+
+/* ---------- Segment Grid 1–20 ---------- */
+
+function buildSegmentPad() {
+  segmentPad.innerHTML = "";
+
+  for (let n = 1; n <= 20; n++) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "segBtn";
+    b.textContent = String(n);
+    b.addEventListener("click", () => setDartFromSegment(n));
+    segmentPad.appendChild(b);
+  }
+}
+
+/* ---------- Turn Eingabe ---------- */
+
+function setMultiplier(m) {
+  state.turn.mult = m;
+  render();
+}
+
+function setSlot(idx) {
+  state.turn.selected = clamp(idx, 0, 2);
+  render();
+}
+
+function setDart(dartObj) {
+  const i = state.turn.selected;
+  state.turn.darts[i] = dartObj;
+
+  // Auto weiter
+  if (i < 2) state.turn.selected = i + 1;
+
+  render();
+}
+
+function setDartFromSegment(seg) {
+  const m = state.turn.mult;
+  const pts = seg * m;
+  const prefix = multLetter(m);
+  const isDoubleValid = (m === 2);
+
+  setDart({ label: `${prefix}${seg}`, points: pts, isDoubleValid });
+  setStatus(`${prefix}${seg} gesetzt (${pts}).`, "ok");
+}
+
+function setMiss() {
+  setDart({ label: "MISS", points: 0, isDoubleValid: false });
+  setStatus("MISS gesetzt.", "ok");
+}
+
+function setOuterBull() {
+  setDart({ label: "OB", points: 25, isDoubleValid: false });
+  setStatus("Outer Bull 25 gesetzt.", "ok");
+}
+
+function setBull() {
+  // BULL 50 gilt als Double-Out gültig
+  setDart({ label: "BULL", points: 50, isDoubleValid: true });
+  setStatus("Bull 50 gesetzt.", "ok");
+}
+
+function undoLastDart() {
+  for (let i = 2; i >= 0; i--) {
+    if (state.turn.darts[i] != null) {
+      state.turn.darts[i] = null;
+      state.turn.selected = i;
+      setStatus("Letzter Dart gelöscht.", "ok");
+      render();
+      return;
+    }
+  }
+  setStatus("Kein Dart zum Löschen.", "muted");
+}
+
+function lastScoringDart() {
+  for (let i = 2; i >= 0; i--) {
+    const d = state.turn.darts[i];
+    if (d && (d.points || 0) > 0) return d;
+  }
+  return null;
+}
+
+/* ---------- Scoring ---------- */
+
+function applyTurn() {
+  const total = turnTotal();
+  const players = getPlayers();
+  const p = players[state.current];
+  if (!p) return;
+
+  pushSnapshot();
+
+  const prev = p.score;
+  const next = prev - total;
+
+  if (total > prev) {
+    setStatus("Bust: Zu viel geworfen.", "warn");
+    nextPlayer();
+    clearTurn();
+    render();
+    return;
+  }
+
+  if (!state.doubleOut) {
+    if (next === 0) return winLeg(p);
+    p.score = next;
+    setStatus(`Eingetragen: ${total} → ${p.score} übrig`, "ok");
+    nextPlayer();
+    clearTurn();
+    render();
+    return;
+  }
+
+  // Double-Out an
+  if (next === 1) {
+    setStatus("Bust: Rest 1 bei Double-Out.", "warn");
+    nextPlayer();
+    clearTurn();
+    render();
+    return;
+  }
+
+  if (next === 0) {
+    const last = lastScoringDart();
+    if (last && last.isDoubleValid) return winLeg(p);
+
+    setStatus("Bust: 0 ohne Double/Bull.", "warn");
+    nextPlayer();
+    clearTurn();
+    render();
+    return;
+  }
+
+  p.score = next;
+  setStatus(`Eingetragen: ${total} → ${p.score} übrig`, "ok");
+  nextPlayer();
+  clearTurn();
+  render();
+}
+
+function winLeg(p) {
+  p.score = 0;
+  p.legs += 1;
+  setStatus(`Game Shot: ${p.name} 🏆`, "ok");
+
+  // Neue Runde starten (Legs bleiben)
+  const players = getPlayers();
+  for (const pl of players) pl.score = START_SCORE;
+
+  state.current = 0;
+  state.history = [];
+  clearTurn();
+  render();
+}
+
+function nextPlayer() {
+  state.current = (state.current + 1) % state.playerCount;
+}
+
+/* ---------- Undo / Neue Runde ---------- */
 
 function undo() {
   const snap = state.history.pop();
@@ -229,122 +339,28 @@ function undo() {
     players[i].legs = clamp(Number(snap.legs[i]), 0, 999);
   }
 
-  state.input = "";
-  pendingFinish = null;
+  state.turn = snap.turn || defaultState().turn;
+
   setStatus("Undo ausgeführt.", "ok");
   render();
 }
 
-/* ---------------- Game Flow ---------------- */
-
-function clearInput() {
-  state.input = "";
-  render();
-}
-
-function nextPlayer() {
-  state.current = (state.current + 1) % state.playerCount;
-}
-
-function newLeg({ resetLegs = false } = {}) {
+function newLeg(resetLegs = false) {
   const players = getPlayers();
-  for (const p of players) {
-    p.score = START_SCORE;
-    if (resetLegs) p.legs = 0;
+  for (const pl of players) {
+    pl.score = START_SCORE;
+    if (resetLegs) pl.legs = 0;
   }
   state.current = 0;
-  state.input = "";
   state.history = [];
-  pendingFinish = null;
+  clearTurn();
   setStatus(resetLegs ? "Match zurückgesetzt." : "Neue Runde gestartet (501).", "ok");
   render();
 }
 
-function applyThrow() {
-  const n = state.input.length ? Number(state.input) : 0;
-  const v = validateThrowScore(n);
-  if (!v.ok) {
-    setStatus(v.msg, "danger");
-    return;
-  }
-
-  const players = getPlayers();
-  const p = players[state.current];
-  if (!p) return;
-
-  const prevScore = p.score;
-  const res = evaluateThrow(prevScore, n, state.doubleOut);
-
-  pushSnapshot();
-
-  if (res.type === "bust") {
-    setStatus(res.reason, "warn");
-    nextPlayer();
-    clearInput();
-    return;
-  }
-
-  if (res.type === "needFinishConfirm") {
-    pendingFinish = { playerIndex: state.current, prevScore };
-    finishText.textContent = `${p.name} würde auf 0 kommen. War der letzte Dart ein Double oder Bull?`;
-    dlgFinish.showModal();
-    setStatus("Finish-Bestätigung nötig.", "warn");
-    return;
-  }
-
-  if (res.type === "win") {
-    p.score = 0;
-    p.legs += 1;
-    showWinner(p.name);
-    clearInput();
-    return;
-  }
-
-  p.score = res.newScore;
-  setStatus(`Eingetragen: ${n} → ${p.score} übrig`, "ok");
-  nextPlayer();
-  clearInput();
-}
-
-function finishConfirm(isDoubleOrBull) {
-  dlgFinish.close();
-
-  const players = getPlayers();
-  const idx = pendingFinish?.playerIndex;
-
-  if (idx == null || !players[idx]) {
-    pendingFinish = null;
-    render();
-    return;
-  }
-
-  const p = players[idx];
-
-  if (isDoubleOrBull) {
-    p.score = 0;
-    p.legs += 1;
-    setStatus(`Game Shot: ${p.name} 🏆`, "ok");
-    showWinner(p.name);
-  } else {
-    p.score = pendingFinish.prevScore;
-    setStatus("0 ohne Double/Bull zählt nicht (Bust).", "warn");
-    nextPlayer();
-  }
-
-  pendingFinish = null;
-  clearInput();
-}
-
-function showWinner(name) {
-  winnerText.textContent = `🏆 ${name} hat die Runde gewonnen!`;
-  dlgWinner.showModal();
-  render();
-}
-
-/* ---------------- START / SETUP ---------------- */
+/* ---------- Start / Settings ---------- */
 
 function openStart() {
-  // Defaults reinladen
   startPlayers.value = String(state.playerCount || 4);
   startDoubleOut.checked = !!state.doubleOut;
 
@@ -368,28 +384,20 @@ function updateStartDisable() {
 
 function applyStart() {
   const n = Number(startPlayers.value);
-  if (![2, 3, 4].includes(n)) {
-    setStatus("Spieleranzahl ungültig.", "danger");
-    return;
-  }
+  if (![2,3,4].includes(n)) { setStatus("Spieleranzahl ungültig.", "danger"); return; }
 
   state.playerCount = n;
   state.doubleOut = !!startDoubleOut.checked;
 
   for (let i = 0; i < 4; i++) {
-    const val = String(startNameInputs[i].value || "").trim();
-    state.players[i].name = val.length ? val : `Spieler ${i + 1}`;
+    const v = String(startNameInputs[i].value || "").trim();
+    state.players[i].name = v.length ? v : `Spieler ${i+1}`;
   }
 
   state.initialized = true;
   dlgStart.close();
-
-  // Neues Match (sauberer Start)
-  newLeg({ resetLegs: true });
-  setStatus("Spiel gestartet ✅", "ok");
+  newLeg(true);
 }
-
-/* ---------------- Settings ---------------- */
 
 function openSettings() {
   selPlayers.value = String(state.playerCount);
@@ -411,28 +419,30 @@ function updateSettingsDisable() {
 
 function applySettings() {
   const n = Number(selPlayers.value);
-  if (![2, 3, 4].includes(n)) {
-    setStatus("Spieleranzahl ungültig.", "danger");
-    return;
-  }
+  if (![2,3,4].includes(n)) { setStatus("Spieleranzahl ungültig.", "danger"); return; }
 
   state.playerCount = n;
   state.doubleOut = !!chkDoubleOut.checked;
 
   for (let i = 0; i < 4; i++) {
-    const val = String(nameInputs[i].value || "").trim();
-    state.players[i].name = val.length ? val : `Spieler ${i + 1}`;
+    const v = String(nameInputs[i].value || "").trim();
+    state.players[i].name = v.length ? v : `Spieler ${i+1}`;
   }
 
   state.current = clamp(state.current, 0, state.playerCount - 1);
-  pendingFinish = null;
-
-  dlgSettings.close();
   setStatus("Einstellungen übernommen.", "ok");
   render();
 }
 
-/* ---------------- Render ---------------- */
+function resetMatch() {
+  state = defaultState();
+  saveState();
+  setStatus("Match zurückgesetzt.", "ok");
+  render();
+  openStart();
+}
+
+/* ---------- Render ---------- */
 
 function render() {
   const players = getPlayers();
@@ -440,19 +450,23 @@ function render() {
 
   elCurrentName.textContent = current?.name ?? "—";
   elDoubleOutLabel.textContent = state.doubleOut ? "an" : "aus";
-  elSubtitle.textContent = `${state.playerCount} Spieler · Double-Out: ${state.doubleOut ? "an" : "aus"}`;
-  elInputDisplay.textContent = state.input.length ? state.input : "0";
+  elSubtitle.textContent = `${state.playerCount} Spieler · 501 · Double-Out: ${state.doubleOut ? "an" : "aus"}`;
 
+  // Aktiver Hinweis
+  elActiveDisplay.textContent = `Dart ${state.turn.selected + 1} · ${multLetter(state.turn.mult)}`;
+
+  // Mult Buttons
+  [btnMultS, btnMultD, btnMultT].forEach(b => b.classList.remove("multBtn--active"));
+  if (state.turn.mult === 1) btnMultS.classList.add("multBtn--active");
+  if (state.turn.mult === 2) btnMultD.classList.add("multBtn--active");
+  if (state.turn.mult === 3) btnMultT.classList.add("multBtn--active");
+
+  // Scoreboard
   elPlayers.innerHTML = "";
-
   players.forEach((p, idx) => {
     const isActive = idx === state.current;
-    const progress = clamp((START_SCORE - p.score) / START_SCORE, 0, 1);
-
     const card = document.createElement("div");
     card.className = "player" + (isActive ? " player--active" : "");
-    card.style.setProperty("--p", String(progress));
-
     card.innerHTML = `
       <div class="player__top">
         <div class="player__name">${isActive ? "🟦" : "👤"} ${escapeHtml(p.name)}</div>
@@ -461,53 +475,63 @@ function render() {
           <span class="badge">${state.doubleOut ? "Double-Out" : "Straight-Out"}</span>
         </div>
       </div>
-
       <div class="player__mid">
         <div>
           <div class="player__score">${p.score}</div>
           <div class="player__legs">Legs: ${p.legs}</div>
         </div>
-        <div class="ring" title="Fortschritt">
-          <span>${Math.round(progress * 100)}%</span>
-        </div>
       </div>
     `;
-
     elPlayers.appendChild(card);
   });
+
+  // Turn total
+  elTurnTotal.textContent = String(turnTotal());
+
+  // Dart slots
+  elDartSlots.innerHTML = "";
+  for (let i = 0; i < 3; i++) {
+    const d = state.turn.darts[i];
+    const slot = document.createElement("div");
+    slot.className = "dartSlot" + (state.turn.selected === i ? " dartSlot--active" : "");
+    slot.innerHTML = `
+      <div class="dartSlot__top">
+        <div class="dartSlot__name">Dart ${i+1}</div>
+        <div class="dartSlot__label">${d ? escapeHtml(d.label) : "—"}</div>
+      </div>
+      <div class="dartSlot__points">${d ? d.points : 0}</div>
+    `;
+    slot.addEventListener("click", () => setSlot(i));
+    elDartSlots.appendChild(slot);
+  }
 
   saveState();
 }
 
-/* ---------------- Events ---------------- */
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;"
+  }[c]));
+}
 
-btnNewLeg.addEventListener("click", () => newLeg({ resetLegs: false }));
+/* ---------- Events ---------- */
+
+btnNewLeg.addEventListener("click", () => newLeg(false));
 btnUndo.addEventListener("click", undo);
 btnSettings.addEventListener("click", openSettings);
 
-btnClear.addEventListener("click", () => {
-  state.input = "";
-  setStatus("Eingabe gelöscht.", "muted");
-  render();
-});
+btnMultS.addEventListener("click", () => setMultiplier(1));
+btnMultD.addEventListener("click", () => setMultiplier(2));
+btnMultT.addEventListener("click", () => setMultiplier(3));
 
-btnSubmit.addEventListener("click", applyThrow);
+btnMiss.addEventListener("click", setMiss);
+btnOBull.addEventListener("click", setOuterBull);
+btnBull.addEventListener("click", setBull);
 
-document.querySelectorAll("[data-quick]").forEach((b) => {
-  b.addEventListener("click", () => {
-    const v = b.getAttribute("data-quick");
-    if (v === "BUST") {
-      state.input = "0";
-      setStatus("Bust gewählt (0 eingetragen).", "warn");
-      render();
-      applyThrow();
-      return;
-    }
-    state.input = String(v);
-    render();
-    applyThrow();
-  });
-});
+btnUndoDart.addEventListener("click", undoLastDart);
+btnClearTurn.addEventListener("click", () => { clearTurn(); setStatus("Aufnahme gelöscht.", "ok"); render(); });
+
+btnSubmitTurn.addEventListener("click", applyTurn);
 
 /* Start */
 startPlayers.addEventListener("change", updateStartDisable);
@@ -516,31 +540,11 @@ btnStartGame.addEventListener("click", applyStart);
 /* Settings */
 selPlayers.addEventListener("change", updateSettingsDisable);
 btnApplySettings.addEventListener("click", applySettings);
+btnResetMatch.addEventListener("click", resetMatch);
 
-btnResetMatch.addEventListener("click", () => {
-  state = defaultState();
-  saveState();
-  dlgSettings.close();
-  setStatus("Match zurückgesetzt.", "ok");
-  render();
-  openStart();
-});
-
-/* Finish/Winner */
-btnFinishYes.addEventListener("click", () => finishConfirm(true));
-btnFinishNo.addEventListener("click", () => finishConfirm(false));
-
-btnWinnerNewLeg.addEventListener("click", () => {
-  dlgWinner.close();
-  newLeg({ resetLegs: false });
-});
-
-/* ---------------- Init ---------------- */
-
-buildKeypad();
+/* Init */
+buildSegmentPad();
 setStatus("Bereit ✅", "ok");
 render();
 
-if (!state.initialized) {
-  openStart();
-}
+if (!state.initialized) openStart();
